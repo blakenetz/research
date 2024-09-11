@@ -1,62 +1,18 @@
 import { Box, Divider } from 'theme-ui'
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useContext } from 'react'
 import { piecewise, quantize, interpolateNumber } from 'd3-interpolate'
 import { Row, Column, Link } from '@carbonplan/components'
 import Slider from './controls/slider'
 import Curve from './controls/curve'
 import Timeline from './timeline'
 import Cost from './cost'
+import { CostContext } from '../context/cost'
 
-/**
- * Properties used in performing calculations
- * @typedef {object} Options
- * @property {number} discountRate
- * @property {number} shortDuration
- * @property {number} projectRisk
- * @property {number} switchingTime
- * @property {boolean} switchingTimeActive
- * @property {number} horizon
- * @property {number[]} shortCostCurve
- * @property {number[]} longCostCurve
- * @property {number[]} longCostArray
- * @property {number[]} longCostArrayForCalc
- */
-
-/** @type {Options} */
-const initOptions = {
-  discountRate: 3,
-  shortDuration: 10,
-  projectRisk: 10,
-  switchingTime: 50,
-  switchingTimeActive: true,
-  horizon: 1000,
-  shortCostCurve: [
-    [0, 20],
-    [20, 20],
-    [40, 20],
-    [60, 20],
-    [80, 20],
-    [100, 20],
-  ],
-  longCostCurve: [
-    [0, 500],
-    [20, 500],
-    [40, 500],
-    [60, 500],
-    [80, 500],
-    [100, 500],
-  ],
-  longCostArray: [],
-  longCostArrayForCalc: [],
-}
-
-const Calculator = ({ initialCosts }) => {
-  const [options, setOptions] = useState(initOptions)
+const Calculator = () => {
+  const { options, setOptions, update } = useContext(CostContext)
 
   useEffect(() => {
-    const { shortDuration, longCostCurve } = options
-
-    const longCostCurveValues = longCostCurve.map((d) => d[1])
+    const longCostCurveValues = options.longCostCurve.map((d) => d[1])
     const longCostPiecewise = piecewise(interpolateNumber, longCostCurveValues)
     const longCostArray = quantize(longCostPiecewise, 100)
     set('longCostArray')(longCostArray)
@@ -71,9 +27,7 @@ const Calculator = ({ initialCosts }) => {
 
   const set = (label) => {
     const setValue = (value) => {
-      setOptions((options) => {
-        return { ...options, [label]: value }
-      })
+      setOptions((options) => ({ ...options, [label]: value }))
     }
     return setValue
   }
@@ -138,7 +92,7 @@ const Calculator = ({ initialCosts }) => {
           }}
         >
           <Column start={[1, 1, 7, 7]} width={[6, 6, 4, 4]}>
-            <Cost options={options} initialCosts={initialCosts} />
+            <Cost options={options} />
           </Column>
         </Row>
       </Box>
