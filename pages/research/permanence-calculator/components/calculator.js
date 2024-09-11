@@ -1,5 +1,5 @@
 import { Box, Divider } from 'theme-ui'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { piecewise, quantize, interpolateNumber } from 'd3-interpolate'
 import { Row, Column, Link } from '@carbonplan/components'
 import Slider from './controls/slider'
@@ -7,34 +7,34 @@ import Curve from './controls/curve'
 import Timeline from './timeline'
 import Cost from './cost'
 
-const Calculator = () => {
-  const initOptions = {
-    discountRate: 3,
-    shortDuration: 10,
-    projectRisk: 10,
-    switchingTime: 50,
-    switchingTimeActive: true,
-    horizon: 1000,
-    shortCostCurve: [
-      [0, 20],
-      [20, 20],
-      [40, 20],
-      [60, 20],
-      [80, 20],
-      [100, 20],
-    ],
-    longCostCurve: [
-      [0, 500],
-      [20, 500],
-      [40, 500],
-      [60, 500],
-      [80, 500],
-      [100, 500],
-    ],
-    longCostArray: [],
-    longCostArrayForCalc: [],
-  }
+const initOptions = {
+  discountRate: 3,
+  shortDuration: 10,
+  projectRisk: 10,
+  switchingTime: 50,
+  switchingTimeActive: true,
+  horizon: 1000,
+  shortCostCurve: [
+    [0, 20],
+    [20, 20],
+    [40, 20],
+    [60, 20],
+    [80, 20],
+    [100, 20],
+  ],
+  longCostCurve: [
+    [0, 500],
+    [20, 500],
+    [40, 500],
+    [60, 500],
+    [80, 500],
+    [100, 500],
+  ],
+  longCostArray: [],
+  longCostArrayForCalc: [],
+}
 
+const Calculator = ({ initialCosts }) => {
   const [options, setOptions] = useState(initOptions)
 
   useEffect(() => {
@@ -122,7 +122,7 @@ const Calculator = () => {
           }}
         >
           <Column start={[1, 1, 7, 7]} width={[6, 6, 4, 4]}>
-            <Cost {...options} />
+            <Cost options={options} initialCosts={initialCosts} />
           </Column>
         </Row>
       </Box>
