@@ -1,9 +1,10 @@
-import { createContext, useState, useEffect } from 'react'
+import { createContext, useState, useEffect, useRef } from 'react'
 import { piecewise, quantize, interpolateNumber } from 'd3-interpolate'
 
 export const CostContext = createContext({})
 
 const nsims = 50
+const localStorageKey = 'permanence-calculator'
 
 /**
  * Properties used in performing calculations
@@ -116,21 +117,39 @@ export default function CostProvider(props) {
   const [discountedCost, setDiscountedCost] = useState(0)
   const [standardDeviation, setStandardDeviation] = useState(0)
   const [options, setOptions] = useState(initOptions)
+  const renderCount = useRef(0)
 
   useEffect(() => {
-    const sims = Array.from({ length: nsims }, () => simulate(options))
+    const storedData = JSON.parse(window.localStorage.getItem(localStorageKey))
 
-    const nextDiscountedCosts =
-      sims.map((o) => o.discountedCost).reduce((a, b) => a + b, 0) / nsims
+    /** Curve component triggers a re-render on load, so disregard first re-render */
+    if (renderCount.current <= 1 && storedData) {
+      setDiscountedCost(storedData.discountedCost)
+      setStandardDeviation(storedData.standardDeviation)
+    } else {
+      const sims = Array.from({ length: nsims }, () => simulate(options))
 
-    const nextStandardDeviation = Math.sqrt(
-      sims
-        .map((o) => Math.pow(o.discountedCost - nextDiscountedCosts, 2))
-        .reduce((a, b) => a + b, 0) / nsims
-    )
+      const nextDiscountedCosts =
+        sims.map((o) => o.discountedCost).reduce((a, b) => a + b, 0) / nsims
 
-    setDiscountedCost(nextDiscountedCosts)
-    setStandardDeviation(nextStandardDeviation)
+      const nextStandardDeviation = Math.sqrt(
+        sims
+          .map((o) => Math.pow(o.discountedCost - nextDiscountedCosts, 2))
+          .reduce((a, b) => a + b, 0) / nsims
+      )
+
+      setDiscountedCost(nextDiscountedCosts)
+      setStandardDeviation(nextStandardDeviation)
+
+      window.localStorage.setItem(
+        localStorageKey,
+        JSON.stringify({
+          discountedCost: nextDiscountedCosts,
+          standardDeviation: nextStandardDeviation,
+        })
+      )
+    }
+    renderCount.current++
   }, [options])
 
   return (
@@ -140,7 +159,24 @@ export default function CostProvider(props) {
         discountedCost,
         standardDeviation,
         options,
-        setOptions,
+        updateOption: (key, value) => {
+          const next = { ...options, [key]: value }
+          // update a copy of the long cost array only when switching
+          // time is active to prevent recalc when switching time is off
+          if (key === 'switchingTimeActive') {
+            next['longCostArrayForCalc'] = options['longCostArray']
+          }
+          if (key === 'shortDuration' || key === 'longCostCurve') {
+            const longCostCurveValues = options.longCostCurve.map((d) => d[1])
+            const longCostPiecewise = piecewise(
+              interpolateNumber,
+              longCostCurveValues
+            )
+            next['longCostArray'] = quantize(longCostPiecewise, 100)
+          }
+
+          setOptions(next)
+        },
       }}
     />
   )

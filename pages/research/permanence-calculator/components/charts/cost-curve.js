@@ -21,6 +21,7 @@ const CostCurve = (container, theme, value, setValue, name, scales, fixed) => {
   const y = scaleLinear().domain(scales.y).range([height, 0])
 
   let points, pathPoints
+
   if (fixed) {
     const v = value[0][1]
     points = [[50, v]]
@@ -28,14 +29,6 @@ const CostCurve = (container, theme, value, setValue, name, scales, fixed) => {
       [0, v],
       [100, v],
     ]
-    setValue([
-      [0, v],
-      [20, v],
-      [40, v],
-      [60, v],
-      [80, v],
-      [100, v],
-    ])
   } else {
     points = value
     pathPoints = points

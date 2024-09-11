@@ -9,29 +9,10 @@ import Cost from './cost'
 import { CostContext } from '../context/cost'
 
 const Calculator = () => {
-  const { options, setOptions } = useContext(CostContext)
-  const { shortDuration, longCostCurve, longCostArray } = options
+  const { options, updateOption } = useContext(CostContext)
 
-  useEffect(() => {
-    const longCostCurveValues = longCostCurve.map((d) => d[1])
-    const longCostPiecewise = piecewise(interpolateNumber, longCostCurveValues)
-    const longCostArray = quantize(longCostPiecewise, 100)
-    set('longCostArray')(longCostArray)
-  }, [shortDuration, longCostCurve])
-
-  // update a copy of the long cost array only when switching
-  // time is active to prevent recalc when switching time is off
-  useEffect(() => {
-    if (options['switchingTimeActive']) {
-      set('longCostArrayForCalc')(options['longCostArray'])
-    }
-  }, [longCostArray])
-
-  const set = (label) => {
-    const setValue = (value) => {
-      setOptions((options) => ({ ...options, [label]: value }))
-    }
-    return setValue
+  const set = (label) => (value) => {
+    updateOption(label, value)
   }
 
   const get = (label) => {

@@ -79,6 +79,7 @@ const Curve = ({
       if (v > 9999) {
         v = 9999
       }
+
       setValue([
         [0, v],
         [20, v],
