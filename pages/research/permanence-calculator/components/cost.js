@@ -1,70 +1,104 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, memo, useState } from 'react'
 import { Box } from 'theme-ui'
 import { piecewise, quantize, interpolateNumber } from 'd3-interpolate'
 
-const Cost = ({
-  shortCost,
-  shortDuration,
-  projectRisk,
-  horizon,
-  discountRate,
-  switchingTime,
-  switchingTimeActive,
-  shortCostCurve,
-  longCostArrayForCalc,
-}) => {
-  const [discountedCost, setDiscountedCost] = useState(0)
-  const [standardDeviation, setStandardDeviation] = useState(0)
+/**
+ * @typedef {import('./calculator').Options} Options
+ */
+
+/** @param {Options} */
+const projectFail = ({ shortDuration, projectRisk }) => {
+  let counter = 1
+  while (counter < shortDuration) {
+    if (Math.random() < projectRisk / 100) {
+      return counter
+    } else {
+      counter += 1
+    }
+  }
+  return 0
+}
+
+/** @param {Options} options*/
+const simulate = (options) => {
+  const {
+    shortDuration,
+    horizon,
+    switchingTime,
+    switchingTimeActive,
+    longCostArrayForCalc,
+    shortCostCurve,
+    discountRate,
+  } = options
 
   const shortCostCurveValues = shortCostCurve.map((d) => d[1])
   const shortCostPiecewise = piecewise(interpolateNumber, shortCostCurveValues)
   const shortCostArray = quantize(shortCostPiecewise, 100)
 
-  const nsims = 50
-  const years = Array(horizon + shortDuration)
-    .fill(0)
-    .map((_, i) => i)
+  let counter = 0
+  let skip = 0
+  let cost = Array(horizon + shortDuration).fill(0)
+  const years = Array.from({ length: horizon + shortDuration }, (_v, i) => i)
   const discount = years.map((y) => 1 / Math.pow(1 + discountRate / 100, y))
 
-  const simulate = () => {
-    let counter = 0
-    let skip = 0
-    let cost = Array(horizon + shortDuration).fill(0)
-    while (counter < horizon) {
-      if (counter >= switchingTime && switchingTimeActive) {
-        cost[switchingTime] = longCostArrayForCalc[Math.min(switchingTime, 99)]
-        counter = horizon
-        skip = 1
+  while (counter < horizon) {
+    if (counter >= switchingTime && switchingTimeActive) {
+      cost[switchingTime] = longCostArrayForCalc[Math.min(switchingTime, 99)]
+      counter = horizon
+      skip = 1
+    } else {
+      cost[counter] = shortCostArray[Math.min(counter, 99)]
+      let projectFailYear = projectFail(options)
+      if (projectFailYear == 0) {
+        counter += shortDuration
       } else {
-        cost[counter] = shortCostArray[Math.min(counter, 99)]
-        let projectFailYear = projectFail()
-        if (projectFailYear == 0) {
-          counter += shortDuration
-        } else {
-          counter += projectFailYear
-        }
+        counter += projectFailYear
       }
     }
-    if ((counter >= horizon) & (skip == 0) && switchingTimeActive) {
-      cost[counter] = longCostArrayForCalc[Math.min(counter, 99)]
-    }
-    const discountedCost = cost
-      .map((c, i) => c * discount[i])
-      .reduce((a, b) => a + b, 0)
-    return { discountedCost: discountedCost }
   }
 
-  const projectFail = () => {
-    let counter = 1
-    while (counter < shortDuration) {
-      if (Math.random() < projectRisk / 100) {
-        return counter
-      } else {
-        counter += 1
-      }
-    }
-    return 0
+  if ((counter >= horizon) & (skip == 0) && switchingTimeActive) {
+    cost[counter] = longCostArrayForCalc[Math.min(counter, 99)]
   }
+
+  const discountedCost = cost
+    .map((c, i) => c * discount[i])
+    .reduce((a, b) => {
+      return (a || 0) + (b || 0)
+    }, 0)
+
+  return { discountedCost }
+}
+
+/** @param {Options} */
+const Cost = ({ options }) => {
+  const { horizon, shortCostCurve } = options
+
+  const nsims = 50
+
+  const sims = useMemo(
+    () =>
+      Array(nsims)
+        .fill(0)
+        .map(() => simulate(options)),
+    [options]
+  )
+
+  const [discountedCost, setDiscountedCost] = useState(0)
+  const [standardDeviation, setStandardDeviation] = useState(0)
+
+  useEffect(() => {
+    const nextDiscountedCosts =
+      sims.map((o) => o.discountedCost).reduce((a, b) => a + b, 0) / nsims
+    const nextStandardDeviation = Math.sqrt(
+      sims
+        .map((o) => Math.pow(o.discountedCost - nextDiscountedCosts, 2))
+        .reduce((a, b) => a + b, 0) / nsims
+    )
+
+    setDiscountedCost(nextDiscountedCosts)
+    setStandardDeviation(nextStandardDeviation)
+  }, [sims])
 
   const buyerFail = () => {
     let counter = 1
@@ -77,31 +111,6 @@ const Cost = ({
     }
     return 0
   }
-
-  useEffect(() => {
-    const sims = Array(nsims)
-      .fill(0)
-      .map((_) => simulate())
-    const discountedCost =
-      sims.map((o) => o.discountedCost).reduce((a, b) => a + b, 0) / nsims
-    const standardDeviation = Math.sqrt(
-      sims
-        .map((o) => Math.pow(o.discountedCost - discountedCost, 2))
-        .reduce((a, b) => a + b, 0) / nsims
-    )
-    setDiscountedCost(discountedCost)
-    setStandardDeviation(standardDeviation)
-  }, [
-    shortCost,
-    shortDuration,
-    projectRisk,
-    horizon,
-    discountRate,
-    switchingTime,
-    switchingTimeActive,
-    shortCostCurve,
-    longCostArrayForCalc,
-  ])
 
   return (
     <Box>
@@ -201,4 +210,10 @@ const Cost = ({
   )
 }
 
-export default Cost
+export default memo(Cost, ({ options: prev }, { options: next }) => {
+  return Object.keys(prev).every((key) => {
+    return Array.isArray(prev[key])
+      ? JSON.stringify(prev[key]) === JSON.stringify(next[key])
+      : prev[key] === next[key]
+  })
+})

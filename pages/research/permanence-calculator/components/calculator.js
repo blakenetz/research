@@ -7,6 +7,22 @@ import Curve from './controls/curve'
 import Timeline from './timeline'
 import Cost from './cost'
 
+/**
+ * Properties used in performing calculations
+ * @typedef {object} Options
+ * @property {number} discountRate
+ * @property {number} shortDuration
+ * @property {number} projectRisk
+ * @property {number} switchingTime
+ * @property {boolean} switchingTimeActive
+ * @property {number} horizon
+ * @property {number[]} shortCostCurve
+ * @property {number[]} longCostCurve
+ * @property {number[]} longCostArray
+ * @property {number[]} longCostArrayForCalc
+ */
+
+/** @type {Options} */
 const initOptions = {
   discountRate: 3,
   shortDuration: 10,
