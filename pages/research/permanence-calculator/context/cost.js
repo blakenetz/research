@@ -113,43 +113,47 @@ const simulate = (options) => {
   return { discountedCost }
 }
 
+/** @param {Options} options */
+const calculate = (options) => {
+  const sims = Array.from({ length: nsims }, () => simulate(options))
+
+  const discountedCost =
+    sims.map((o) => o.discountedCost).reduce((a, b) => a + b, 0) / nsims
+
+  const standardDeviation = Math.sqrt(
+    sims
+      .map((o) => Math.pow(o.discountedCost - discountedCost, 2))
+      .reduce((a, b) => a + b, 0) / nsims
+  )
+
+  return {
+    discountedCost,
+    standardDeviation,
+  }
+}
+
 export default function CostProvider(props) {
   const [discountedCost, setDiscountedCost] = useState(0)
   const [standardDeviation, setStandardDeviation] = useState(0)
   const [options, setOptions] = useState(initOptions)
-  const renderCount = useRef(0)
+  const pristine = useRef(true)
 
   useEffect(() => {
     const storedData = JSON.parse(window.localStorage.getItem(localStorageKey))
+    const calculated = calculate(options)
 
-    /** Curve component triggers a re-render on load, so disregard first re-render */
-    if (renderCount.current <= 1 && storedData) {
-      setDiscountedCost(storedData.discountedCost)
-      setStandardDeviation(storedData.standardDeviation)
+    if (pristine.current) {
+      const data = storedData ?? calculated
+      setDiscountedCost(data.discountedCost)
+      setStandardDeviation(data.standardDeviation)
+
+      window.localStorage.setItem(localStorageKey, JSON.stringify(calculated))
+
+      pristine.current = false
     } else {
-      const sims = Array.from({ length: nsims }, () => simulate(options))
-
-      const nextDiscountedCosts =
-        sims.map((o) => o.discountedCost).reduce((a, b) => a + b, 0) / nsims
-
-      const nextStandardDeviation = Math.sqrt(
-        sims
-          .map((o) => Math.pow(o.discountedCost - nextDiscountedCosts, 2))
-          .reduce((a, b) => a + b, 0) / nsims
-      )
-
-      setDiscountedCost(nextDiscountedCosts)
-      setStandardDeviation(nextStandardDeviation)
-
-      window.localStorage.setItem(
-        localStorageKey,
-        JSON.stringify({
-          discountedCost: nextDiscountedCosts,
-          standardDeviation: nextStandardDeviation,
-        })
-      )
+      setDiscountedCost(calculated.discountedCost)
+      setStandardDeviation(calculated.standardDeviation)
     }
-    renderCount.current++
   }, [options])
 
   return (
